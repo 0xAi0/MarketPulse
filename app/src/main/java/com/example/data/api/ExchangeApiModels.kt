@@ -67,3 +67,11 @@ data class LighterCandlesResponse(
     val l: List<Any>? = null,
     val o: List<Any>? = null
 )
+
+// === UPBIT MODELS ===
+@JsonClass(generateAdapter = true)
+data class UpbitMarketResponse(
+    val market: String,
+    val korean_name: String,
+    val english_name: String
+)

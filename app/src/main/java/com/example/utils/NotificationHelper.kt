@@ -56,4 +56,27 @@ object NotificationHelper {
             // Permission wasn't available
         }
     }
+
+    fun showListingNotification(context: Context, id: Int, title: String, content: String) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                return
+            }
+        }
+
+        val builder = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.stat_notify_chat)
+            .setContentTitle(title)
+            .setContentText(content)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+
+        try {
+            with(NotificationManagerCompat.from(context)) {
+                notify(id, builder.build())
+            }
+        } catch (e: SecurityException) {
+            // Permission wasn't available
+        }
+    }
 }

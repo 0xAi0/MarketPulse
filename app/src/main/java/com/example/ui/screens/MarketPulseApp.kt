@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Calculate
+import androidx.compose.material.icons.filled.Campaign
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
@@ -132,6 +133,14 @@ fun MarketPulseApp(
                     selectedContentColor = CyanNeon,
                     unselectedContentColor = GrayDim
                 )
+                Tab(
+                    selected = selectedTab == 3,
+                    onClick = { selectedTab = 3 },
+                    text = { Text("Upbit Listings", fontWeight = FontWeight.Bold, fontSize = 14.sp) },
+                    icon = { Icon(imageVector = Icons.Default.Campaign, contentDescription = "Upbit Listings", modifier = Modifier.size(16.dp)) },
+                    selectedContentColor = CyanNeon,
+                    unselectedContentColor = GrayDim
+                )
             }
 
             // Tab Panels content switcher
@@ -145,6 +154,9 @@ fun MarketPulseApp(
                         viewModel = viewModel
                     )
                     2 -> CalculatorsScreen(
+                        viewModel = viewModel
+                    )
+                    3 -> ListingsScreen(
                         viewModel = viewModel
                     )
                 }

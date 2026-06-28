@@ -36,6 +36,7 @@ class MarketPulseRepository(
     private val context: Context,
     private val watchlistDao: WatchlistDao,
     private val priceAlertDao: PriceAlertDao,
+    private val upbitMarketDao: UpbitMarketDao,
     private val api: ExchangeApiService = NetworkClient.service
 ) {
 
@@ -710,5 +711,61 @@ class MarketPulseRepository(
     // Help format symbols
     private fun cleanSymbol(sym: String): String {
         return sym.replace("USDT", "").replace("-USDT", "").replace("-USD", "")
+    }
+
+    // === UPBIT LISTINGS ===
+    fun getUpbitMarketsFlow(): Flow<List<UpbitMarket>> = upbitMarketDao.getAllMarketsFlow()
+
+    suspend fun setUpbitAlertEnabled(market: String, enabled: Boolean) {
+        withContext(Dispatchers.IO) {
+            upbitMarketDao.setAlertEnabled(market, enabled)
+        }
+    }
+
+    suspend fun checkAndFetchUpbitListings(onNewListing: (UpbitMarket) -> Unit = {}): List<UpbitMarket> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val remoteResponse = api.getUpbitMarkets(isDetails = false)
+                val existingCount = upbitMarketDao.getMarketsCount()
+                val existingMarketsMap = upbitMarketDao.getAllMarkets().associateBy { it.market }
+
+                val toInsert = mutableListOf<UpbitMarket>()
+                val newMarketsList = mutableListOf<UpbitMarket>()
+
+                for (remote in remoteResponse) {
+                    val exists = existingMarketsMap[remote.market]
+                    if (exists == null) {
+                        val newItem = UpbitMarket(
+                            market = remote.market,
+                            koreanName = remote.korean_name,
+                            englishName = remote.english_name,
+                            isAlertEnabled = true,
+                            discoveredAt = System.currentTimeMillis()
+                        )
+                        toInsert.add(newItem)
+                        // Only trigger alerts for subsequent runs, not initial sync
+                        if (existingCount > 0) {
+                            newMarketsList.add(newItem)
+                        }
+                    }
+                }
+
+                if (toInsert.isNotEmpty()) {
+                    upbitMarketDao.insertMarkets(toInsert)
+                }
+
+                // Call alert hook for genuinely new listings
+                newMarketsList.forEach { market ->
+                    if (market.isAlertEnabled) {
+                        onNewListing(market)
+                    }
+                }
+
+                upbitMarketDao.getAllMarkets()
+            } catch (e: Exception) {
+                Log.e("Repository", "Error fetching Upbit markets: ${e.message}", e)
+                upbitMarketDao.getAllMarkets()
+            }
+        }
     }
 }

@@ -5,10 +5,11 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
-@Database(entities = [WatchlistItem::class, PriceAlert::class], version = 2, exportSchema = false)
+@Database(entities = [WatchlistItem::class, PriceAlert::class, UpbitMarket::class], version = 3, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun watchlistDao(): WatchlistDao
     abstract fun priceAlertDao(): PriceAlertDao
+    abstract fun upbitMarketDao(): UpbitMarketDao
 
     companion object {
         @Volatile

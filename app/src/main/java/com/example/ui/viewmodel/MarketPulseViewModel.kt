@@ -19,7 +19,7 @@ import kotlinx.coroutines.launch
 class MarketPulseViewModel(application: Application) : AndroidViewModel(application) {
 
     private val db = AppDatabase.getDatabase(application)
-    private val repository = MarketPulseRepository(application, db.watchlistDao(), db.priceAlertDao())
+    private val repository = MarketPulseRepository(application, db.watchlistDao(), db.priceAlertDao(), db.upbitMarketDao())
 
     private val _selectedExchange = MutableStateFlow("binance")
     val selectedExchange: StateFlow<String> = _selectedExchange.asStateFlow()
@@ -88,6 +88,34 @@ class MarketPulseViewModel(application: Application) : AndroidViewModel(applicat
     val alertsList: StateFlow<List<PriceAlert>> = repository.getAllAlerts()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // Upbit Listings State
+    val upbitMarkets: StateFlow<List<com.example.data.db.UpbitMarket>> = repository.getUpbitMarketsFlow()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private val _isUpbitLoading = MutableStateFlow(false)
+    val isUpbitLoading: StateFlow<Boolean> = _isUpbitLoading.asStateFlow()
+
+    fun triggerUpbitRefresh() {
+        viewModelScope.launch {
+            _isUpbitLoading.value = true
+            repository.checkAndFetchUpbitListings { newListing ->
+                NotificationHelper.showListingNotification(
+                    getApplication(),
+                    newListing.market.hashCode(),
+                    "New Upbit Listing Alert! 🚀",
+                    "New pair listed: ${newListing.market} (${newListing.englishName} / ${newListing.koreanName})"
+                )
+            }
+            _isUpbitLoading.value = false
+        }
+    }
+
+    fun setUpbitAlertEnabled(market: String, enabled: Boolean) {
+        viewModelScope.launch {
+            repository.setUpbitAlertEnabled(market, enabled)
+        }
+    }
+
     // Modal detail ticker lookup
     private val _detailTicker = MutableStateFlow<TickerData?>(null)
     val detailTicker: StateFlow<TickerData?> = _detailTicker.asStateFlow()
@@ -115,6 +143,23 @@ class MarketPulseViewModel(application: Application) : AndroidViewModel(applicat
 
         viewModelScope.launch {
             repository.checkAndPrepopulateWatchlist()
+        }
+
+        // Fetch Upbit markets initially and start periodic refresh loop
+        viewModelScope.launch {
+            while (true) {
+                _isUpbitLoading.value = true
+                repository.checkAndFetchUpbitListings { newListing ->
+                    NotificationHelper.showListingNotification(
+                        getApplication(),
+                        newListing.market.hashCode(),
+                        "New Upbit Listing Alert! 🚀",
+                        "New pair listed: ${newListing.market} (${newListing.englishName} / ${newListing.koreanName})"
+                    )
+                }
+                _isUpbitLoading.value = false
+                delay(30_000L) // check every 30s
+            }
         }
 
         // Periodically refresh tickers for selecting exchange

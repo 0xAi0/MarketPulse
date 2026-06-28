@@ -34,4 +34,9 @@ interface ExchangeApiService {
 
     @GET
     suspend fun getLighterCandles(@Url url: String): ResponseBody
+
+    @GET("https://api.upbit.com/v1/market/all")
+    suspend fun getUpbitMarkets(
+        @Query("isDetails") isDetails: Boolean = false
+    ): List<UpbitMarketResponse>
 }
