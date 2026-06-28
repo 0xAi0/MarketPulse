@@ -9,5 +9,6 @@ data class WatchlistItem(
     val symbol: String, // e.g. "BTCUSDT" or "BTC"
     val exchange: String, // "binance", "hyperliquid", "asterdex", "lighter"
     val isPinned: Boolean = false,
-    val orderIndex: Int = 0
+    val orderIndex: Int = 0,
+    val category: String = "Core"
 )

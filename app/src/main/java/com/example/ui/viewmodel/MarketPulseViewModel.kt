@@ -41,10 +41,27 @@ class MarketPulseViewModel(application: Application) : AndroidViewModel(applicat
         .flatMapLatest { exchange -> repository.getWatchlistForExchange(exchange) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // UI-ready tickers, matching order inside watchlist
-    val uiTickers: StateFlow<List<TickerData>> = combine(watchlistItems, _tickers) { watchlist, tickers ->
+    private val _selectedCategory = MutableStateFlow("All")
+    val selectedCategory: StateFlow<String> = _selectedCategory.asStateFlow()
+
+    // Dynamically fetch all categories present in the watchlist for the active exchange, plus default ones
+    val availableCategories: StateFlow<List<String>> = watchlistItems
+        .map { list ->
+            val defaults = listOf("All", "Core", "DeFi", "L1/L2", "Memes", "Web3")
+            val custom = list.map { it.category }.distinct()
+            (defaults + custom).distinct()
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), listOf("All", "Core", "DeFi", "L1/L2", "Memes", "Web3"))
+
+    // UI-ready tickers, matching order inside watchlist, filtered by selected category if not "All"
+    val uiTickers: StateFlow<List<TickerData>> = combine(watchlistItems, _tickers, _selectedCategory) { watchlist, tickers, selectedCat ->
+        val filteredWatchlist = if (selectedCat == "All") {
+            watchlist
+        } else {
+            watchlist.filter { it.category.uppercase() == selectedCat.uppercase() }
+        }
         val tickersMap = tickers.associateBy { it.symbol.uppercase() }
-        watchlist.map { item ->
+        filteredWatchlist.map { item ->
             val symUpper = item.symbol.uppercase()
             // AsterDex and Binance might have suffix standard
             var testSym = symUpper
@@ -52,7 +69,7 @@ class MarketPulseViewModel(application: Application) : AndroidViewModel(applicat
             if (match == null && !testSym.endsWith("USDT")) {
                 match = tickersMap[testSym + "USDT"]
             }
-            match?.copy(isPinned = item.isPinned) ?: TickerData(
+            match?.copy(isPinned = item.isPinned, category = item.category) ?: TickerData(
                 symbol = item.symbol,
                 displaySymbol = item.symbol.replace("USDT", "").replace("-USDT", "").replace("-USD", ""),
                 exchange = item.exchange,
@@ -61,7 +78,8 @@ class MarketPulseViewModel(application: Application) : AndroidViewModel(applicat
                 volume = 0.0,
                 high24h = null,
                 low24h = null,
-                isPinned = item.isPinned
+                isPinned = item.isPinned,
+                category = item.category
             )
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -170,15 +188,26 @@ class MarketPulseViewModel(application: Application) : AndroidViewModel(applicat
         _refreshIntervalSeconds.value = seconds
     }
 
+    fun selectCategory(category: String) {
+        _selectedCategory.value = category
+    }
+
     // --- COIN ADD/REMOVE/PIN ---
-    fun addCoinToActiveWatchlist(symbol: String) {
+    fun addCoinToActiveWatchlist(symbol: String, category: String = "Core") {
         viewModelScope.launch {
             var formattedSymbol = symbol.trim().uppercase()
             // Binance & AsterDex lookups standard suffix
             if ((_selectedExchange.value == "binance" || _selectedExchange.value == "asterdex") && !formattedSymbol.endsWith("USDT")) {
                 formattedSymbol += "USDT"
             }
-            repository.addWatchlistItem(formattedSymbol, _selectedExchange.value)
+            repository.addWatchlistItem(formattedSymbol, _selectedExchange.value, category)
+            forceImmediateRefresh()
+        }
+    }
+
+    fun changeCoinCategory(symbol: String, category: String) {
+        viewModelScope.launch {
+            repository.updateWatchlistItemCategory(symbol, _selectedExchange.value, category)
             forceImmediateRefresh()
         }
     }

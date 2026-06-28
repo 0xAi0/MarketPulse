@@ -20,7 +20,8 @@ data class TickerData(
     val volume: Double,
     val high24h: Double?,
     val low24h: Double?,
-    val isPinned: Boolean = false
+    val isPinned: Boolean = false,
+    val category: String = "Core"
 )
 
 data class TimeframePerformance(
@@ -46,6 +47,17 @@ class MarketPulseRepository(
         "binance" to listOf("BTCUSDT", "ETHUSDT", "SOLUSDT", "LITUSDT", "AAVEUSDT", "ENAUSDT", "LDOUSDT", "APTUSDT")
     )
 
+    private fun getInitialCategoryForSymbol(symbol: String): String {
+        val upper = symbol.uppercase()
+        return when {
+            upper.startsWith("BTC") || upper.startsWith("ETH") || upper.startsWith("SOL") || upper.startsWith("BNB") -> "Core"
+            upper.startsWith("AAVE") || upper.startsWith("ENA") || upper.startsWith("LDO") || upper.startsWith("UNI") || upper.startsWith("LIT") -> "DeFi"
+            upper.startsWith("NEAR") || upper.startsWith("APT") || upper.startsWith("AVAX") || upper.startsWith("SUI") -> "L1/L2"
+            upper.startsWith("DOGE") || upper.startsWith("SHIB") || upper.startsWith("PEPE") || upper.startsWith("WIF") || upper.startsWith("BONK") -> "Memes"
+            else -> "Web3"
+        }
+    }
+
     suspend fun checkAndPrepopulateWatchlist() {
         withContext(Dispatchers.IO) {
             val allItems = watchlistDao.getAllWatchlistItems().first()
@@ -58,7 +70,8 @@ class MarketPulseRepository(
                                 symbol = symbol,
                                 exchange = exchange,
                                 isPinned = false,
-                                orderIndex = index
+                                orderIndex = index,
+                                category = getInitialCategoryForSymbol(symbol)
                             )
                         )
                     }
@@ -73,7 +86,7 @@ class MarketPulseRepository(
     fun getWatchlistForExchange(exchange: String): Flow<List<WatchlistItem>> =
         watchlistDao.getWatchlistForExchange(exchange)
 
-    suspend fun addWatchlistItem(symbol: String, exchange: String) {
+    suspend fun addWatchlistItem(symbol: String, exchange: String, category: String = "Core") {
         val current = watchlistDao.getWatchlistForExchange(exchange).first()
         val nextIndex = (current.maxByOrNull { it.orderIndex }?.orderIndex ?: -1) + 1
         watchlistDao.insertWatchlistItem(
@@ -81,9 +94,18 @@ class MarketPulseRepository(
                 symbol = symbol.trim().uppercase(),
                 exchange = exchange,
                 isPinned = false,
-                orderIndex = nextIndex
+                orderIndex = nextIndex,
+                category = category
             )
         )
+    }
+
+    suspend fun updateWatchlistItemCategory(symbol: String, exchange: String, category: String) {
+        val current = watchlistDao.getWatchlistForExchange(exchange).first()
+        val match = current.find { it.symbol == symbol }
+        if (match != null) {
+            watchlistDao.insertWatchlistItem(match.copy(category = category))
+        }
     }
 
     suspend fun removeWatchlistItem(symbol: String, exchange: String) {
